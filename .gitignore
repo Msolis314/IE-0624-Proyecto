@@ -218,3 +218,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Salida de compilación
+build/
+
+# Configuración generada (se reconstruye desde sdkconfig.defaults)
+sdkconfig
+sdkconfig.old
+
+# Componentes descargados por el component manager
+managed_components/
+
+# Editores
+.vscode/
+.idea/
+*.swp
