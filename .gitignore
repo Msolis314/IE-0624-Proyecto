@@ -221,6 +221,7 @@ __marimo__/
 
 # Salida de compilación
 build/
+build_pwm/
 
 # Configuración generada (se reconstruye desde sdkconfig.defaults)
 sdkconfig
@@ -233,3 +234,4 @@ managed_components/
 .vscode/
 .idea/
 *.swp
+

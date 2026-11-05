@@ -1,15 +1,16 @@
 /*
- * main.c - Fase 1: control de motores desde la consola serial
+ * main.c - control manual por WiFi y por consola
  *
- * Tarea de control provisional de 20 ms que es la única que escribe en
- * los motores. La consola solo pone teclas en una cola; la tarea de
- * control las procesa al inicio de cada ciclo (como en la figura A.4).
+ * Este archivo solo arranca los módulos y traduce teclas de la consola
+ * a comandos. La lógica está en los componentes:
  *
- * En la fase 3 la cola de teclas se reemplaza por la cola de comando_t
- * que llena el servidor WebSocket, y se agrega el paro por 500 ms sin
- * comandos.
+ *   motores/  PWM, rampa y paro (fase 1)
+ *   estado/   cola de comando_t y copia del estado (contrato entre módulos)
+ *   control/  tarea de 20 ms, única que escribe en los motores
+ *   red/      punto de acceso, página web, WebSocket y telemetría
+ *   consola/  teclas por el USB nativo (pruebas)
  *
- * Teclas:
+ * Teclas de la consola (iguales a la fase 1):
  *   w  adelante        s  atrás
  *   a  girar izquierda d  girar derecha
  *   x  alto suave (con rampa)
@@ -17,38 +18,21 @@
  *   r  reanudar (habilita puentes)
  *   +  subir velocidad base 10 %   -  bajar velocidad base 10 %
  *   i  mostrar estado              ?  ayuda
+ *
+ * Los movimientos de la consola no vencen (no hay repetición de teclas);
+ * los de la web se detienen si pasan 500 ms sin repetirse.
  */
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
 #include "esp_log.h"
+#include "nvs_flash.h"
 
-#include "config_pines.h"
-#include "motores.h"
 #include "consola.h"
+#include "control.h"
+#include "estado.h"
+#include "motores.h"
+#include "red.h"
 
 static const char *TAG = "main";
-
-#define PERIODO_CONTROL_MS   20
-#define CONTROL_PILA_BYTES   4096
-#define CONTROL_PRIORIDAD    10
-#define LARGO_COLA_TECLAS    16
-
-#define VELOCIDAD_INICIAL    30.0f
-#define PASO_VELOCIDAD       10.0f
-
-static QueueHandle_t s_cola_teclas;
-
-/* ------------------------------------------------------------------------ */
-/* Consola: solo pone la tecla en la cola                                    */
-/* ------------------------------------------------------------------------ */
-
-static void al_recibir_tecla(char tecla)
-{
-    /* Si la cola está llena, la tecla se descarta */
-    xQueueSend(s_cola_teclas, &tecla, 0);
-}
 
 static void mostrar_ayuda(void)
 {
@@ -56,130 +40,65 @@ static void mostrar_ayuda(void)
                   "+/- velocidad, i estado, ? ayuda");
 }
 
-/* ------------------------------------------------------------------------ */
-/* Tarea de control                                                          */
-/* ------------------------------------------------------------------------ */
-
-typedef struct {
-    int   dir_izq;     /* -1, 0 o 1 */
-    int   dir_der;
-    float velocidad;   /* velocidad base en % */
-} control_t;
-
-static void aplicar_objetivo(const control_t *c)
+/* Corre en la tarea de la consola: solo traduce y encola */
+static void al_recibir_tecla(char tecla)
 {
-    motores_set_objetivo(c->dir_izq * c->velocidad, c->dir_der * c->velocidad);
-}
+    comando_t cmd = { .origen = ORIGEN_CONSOLA };
 
-static void fijar_direccion(control_t *c, int izq, int der, const char *nombre)
-{
-    if (!motores_habilitados()) {
-        ESP_LOGW(TAG, "en paro: presione 'r' para reanudar");
-        return;
-    }
-    c->dir_izq = izq;
-    c->dir_der = der;
-    aplicar_objetivo(c);
-    ESP_LOGI(TAG, "%s (%.0f %%)", nombre, c->velocidad);
-}
-
-static void procesar_tecla(control_t *c, char tecla)
-{
     switch (tecla) {
-    case 'w': fijar_direccion(c,  1,  1, "adelante");  break;
-    case 's': fijar_direccion(c, -1, -1, "atrás");     break;
-    case 'a': fijar_direccion(c, -1,  1, "izquierda"); break;
-    case 'd': fijar_direccion(c,  1, -1, "derecha");   break;
-    case 'x': fijar_direccion(c,  0,  0, "alto");      break;
+    case 'w': cmd.tipo = CMD_MOVER; cmd.arg.mov = MOV_ADELANTE;  break;
+    case 's': cmd.tipo = CMD_MOVER; cmd.arg.mov = MOV_ATRAS;     break;
+    case 'a': cmd.tipo = CMD_MOVER; cmd.arg.mov = MOV_IZQUIERDA; break;
+    case 'd': cmd.tipo = CMD_MOVER; cmd.arg.mov = MOV_DERECHA;   break;
+    case 'x': cmd.tipo = CMD_ALTO;                               break;
+    case 'p': cmd.tipo = CMD_PARO;                               break;
+    case 'r': cmd.tipo = CMD_REANUDAR;                           break;
+    case '+': cmd.tipo = CMD_VELOCIDAD; cmd.arg.pasos = +1;      break;
+    case '-': cmd.tipo = CMD_VELOCIDAD; cmd.arg.pasos = -1;      break;
+    case 'i': cmd.tipo = CMD_INFO;                               break;
+    case '?': mostrar_ayuda(); return;
+    default:  return;
+    }
 
-    case 'p':
-        c->dir_izq = 0;
-        c->dir_der = 0;
-        motores_paro();
-        break;
-
-    case 'r':
-        if (!motores_habilitados()) {
-            c->dir_izq = 0;
-            c->dir_der = 0;
-            motores_habilitar(true);
-        }
-        break;
-
-    case '+':
-    case '-':
-        c->velocidad += (tecla == '+') ? PASO_VELOCIDAD : -PASO_VELOCIDAD;
-        if (c->velocidad < 0.0f)   c->velocidad = 0.0f;
-        if (c->velocidad > 100.0f) c->velocidad = 100.0f;
-        aplicar_objetivo(c);
-        ESP_LOGI(TAG, "velocidad base %.0f %% (límite %.0f %%)",
-                 c->velocidad, MOTOR_LIMITE_PORCENTAJE);
-        break;
-
-    case 'i':
-        ESP_LOGI(TAG, "puentes %s | salida izq %+6.1f %% der %+6.1f %% | base %.0f %%",
-                 motores_habilitados() ? "habilitados" : "deshabilitados",
-                 motores_obtener_salida(MOTOR_IZQ),
-                 motores_obtener_salida(MOTOR_DER),
-                 c->velocidad);
-        break;
-
-    case '?':
-        mostrar_ayuda();
-        break;
-
-    default:
-        break;
+    if (!estado_enviar_comando(&cmd)) {
+        ESP_LOGW(TAG, "cola llena: se descartó '%c'", tecla);
     }
 }
 
-static void tarea_control(void *arg)
+static void iniciar_nvs(void)
 {
-    control_t control = {
-        .dir_izq   = 0,
-        .dir_der   = 0,
-        .velocidad = VELOCIDAD_INICIAL,
-    };
-    const float dt_s = PERIODO_CONTROL_MS / 1000.0f;
-    TickType_t ultimo = xTaskGetTickCount();
-    char tecla;
-
-    while (1) {
-        /* 1. Procesar todos los comandos pendientes */
-        while (xQueueReceive(s_cola_teclas, &tecla, 0) == pdTRUE) {
-            procesar_tecla(&control, tecla);
-        }
-
-        /* 2. Rampa y escritura del PWM */
-        motores_actualizar(dt_s);
-
-        /* 3. Esperar el siguiente periodo */
-        vTaskDelayUntil(&ultimo, pdMS_TO_TICKS(PERIODO_CONTROL_MS));
+    /* El WiFi guarda su calibración en NVS */
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
     }
+    ESP_ERROR_CHECK(err);
 }
-
-/* ------------------------------------------------------------------------ */
-/* Inicio                                                                    */
-/* ------------------------------------------------------------------------ */
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "Plataforma Junior: fase 1, control por consola");
+    ESP_LOGI(TAG, "Plataforma Junior: fase 2, control por WiFi y consola");
 
+    /* 1. Motores primero: EN queda en bajo lo antes posible */
     ESP_ERROR_CHECK(motores_init());
 
-    s_cola_teclas = xQueueCreate(LARGO_COLA_TECLAS, sizeof(char));
-    if (s_cola_teclas == NULL) {
-        ESP_LOGE(TAG, "no se pudo crear la cola de teclas");
-        return;
-    }
+    /* 2. Contrato entre módulos y lazo de control */
+    ESP_ERROR_CHECK(estado_iniciar());
+    ESP_ERROR_CHECK(control_iniciar());
 
-    xTaskCreate(tarea_control, "control", CONTROL_PILA_BYTES,
-                NULL, CONTROL_PRIORIDAD, NULL);
-
+    /* 3. Entradas de comandos */
     ESP_ERROR_CHECK(consola_iniciar(al_recibir_tecla));
 
-    /* Arranca deshabilitado: hay que presionar 'r' para mover los motores */
+    iniciar_nvs();
+    esp_err_t err = red_iniciar();
+    if (err != ESP_OK) {
+        /* Sin red la consola sigue funcionando: no se reinicia */
+        ESP_LOGE(TAG, "la red no arrancó (%s); solo queda la consola",
+                 esp_err_to_name(err));
+    }
+
+    /* Arranca deshabilitado: hay que presionar 'r' o Reanudar */
     ESP_LOGI(TAG, "motores deshabilitados; presione 'r' para habilitar");
     mostrar_ayuda();
 }

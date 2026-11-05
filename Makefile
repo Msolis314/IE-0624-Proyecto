@@ -7,6 +7,7 @@
 #   make monitor         abre el monitor serial (salir con Ctrl+])
 #   make fm              flashea y abre el monitor
 #   make menuconfig      configuracion del proyecto
+#   make prueba-pwm      compila y flashea la prueba del osciloscopio
 #   make PORT=/dev/ttyUSB0 flash   usar otro puerto
 
 SHELL := /bin/bash
@@ -27,7 +28,11 @@ else
   IDF := source "$(IDF_ACTIVATE)" > /dev/null && idf.py
 endif
 
-.PHONY: all build flash monitor fm menuconfig size clean fullclean erase set-target check-env help
+# La prueba del osciloscopio se compila en su propia carpeta, para no
+# mezclarla con la compilación normal en build/
+BUILD_PWM    := build_pwm
+
+.PHONY: all build flash monitor fm menuconfig size clean fullclean erase set-target check-env help prueba-pwm
 
 all: build
 
@@ -60,6 +65,9 @@ fullclean: check-env
 
 erase: check-env
 	$(IDF) -p $(PORT) erase-flash
+
+prueba-pwm: check-env
+	$(IDF) -B $(BUILD_PWM) -DPRUEBA_PWM=ON -p $(PORT) -b $(BAUD) flash monitor
 
 check-env:
 ifndef IDF_PATH

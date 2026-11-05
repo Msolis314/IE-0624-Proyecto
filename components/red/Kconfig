@@ -1,0 +1,28 @@
+menu "Junior: red WiFi"
+
+    config JUNIOR_WIFI_SSID
+        string "Nombre de la red (SSID)"
+        default "Junior-ESP32"
+
+    config JUNIOR_WIFI_PASSWORD
+        string "Contraseña (mínimo 8 caracteres)"
+        default "junior2026"
+        help
+            Con menos de 8 caracteres la red queda abierta, sin contraseña.
+
+    config JUNIOR_WIFI_CANAL
+        int "Canal WiFi"
+        range 1 13
+        default 6
+
+    config JUNIOR_WIFI_MAX_CLIENTES
+        int "Máximo de dispositivos conectados al punto de acceso"
+        range 1 4
+        default 2
+
+    config JUNIOR_TELEMETRIA_MS
+        int "Periodo de la telemetría (ms)"
+        range 50 1000
+        default 200
+
+endmenu

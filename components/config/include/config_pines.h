@@ -25,7 +25,9 @@
 #define RAMPA_PORCENTAJE_POR_S  200.0f  /* de 0 a 100 % en 0.5 s */
 
 /* Límite de velocidad */
-#define MOTOR_LIMITE_PORCENTAJE  40.0f  
+#ifndef MOTOR_LIMITE_PORCENTAJE
+#define MOTOR_LIMITE_PORCENTAJE  40.0f
+#endif
 
 /* Inversión de sentido por software*/
 #define MOTOR_IZQ_INVERTIDO  0

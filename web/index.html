@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Junior</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <header>
+    <h1>Junior</h1>
+    <span id="conexion" class="chip chip-mal">Desconectado</span>
+  </header>
+
+  <main>
+    <section class="tarjeta estado">
+      <div class="fila">
+        <span class="etiqueta">Puentes</span>
+        <span id="habilitado" class="chip">—</span>
+      </div>
+      <div class="fila">
+        <span class="etiqueta">Modo</span>
+        <span id="modo" class="valor">—</span>
+      </div>
+      <div class="fila">
+        <span class="etiqueta">Movimiento</span>
+        <span id="movimiento" class="valor">—</span>
+      </div>
+
+      <div class="motor">
+        <span class="etiqueta">Motor izq.</span>
+        <div class="barra"><div id="barra-izq" class="relleno"></div></div>
+        <span id="salida-izq" class="valor num">0 %</span>
+      </div>
+      <div class="motor">
+        <span class="etiqueta">Motor der.</span>
+        <div class="barra"><div id="barra-der" class="relleno"></div></div>
+        <span id="salida-der" class="valor num">0 %</span>
+      </div>
+    </section>
+
+    <section class="pad" aria-label="Control manual">
+      <button class="dir" data-mov="ADE" style="grid-area: arriba"  aria-label="Adelante">▲</button>
+      <button class="dir" data-mov="IZQ" style="grid-area: izq"     aria-label="Izquierda">◀</button>
+      <button id="alto"   class="alto"   style="grid-area: centro"  aria-label="Alto">ALTO</button>
+      <button class="dir" data-mov="DER" style="grid-area: der"     aria-label="Derecha">▶</button>
+      <button class="dir" data-mov="ATR" style="grid-area: abajo"   aria-label="Atrás">▼</button>
+    </section>
+
+    <section class="tarjeta velocidad">
+      <button id="vel-menos" class="secundario" aria-label="Bajar velocidad">−</button>
+      <div class="vel-texto">
+        <span class="etiqueta">Velocidad</span>
+        <span><span id="vb" class="num grande">—</span> <span id="lim" class="etiqueta"></span></span>
+      </div>
+      <button id="vel-mas" class="secundario" aria-label="Subir velocidad">+</button>
+    </section>
+
+    <section class="acciones">
+      <button id="paro" class="paro">PARO</button>
+      <button id="reanudar" class="secundario">Reanudar</button>
+    </section>
+
+    <section class="tarjeta modos">
+      <button id="modo-manual" class="secundario activo">Manual</button>
+      <button id="modo-luz" class="secundario" disabled title="Disponible en la fase 5">Modo luz</button>
+    </section>
+
+    <details class="tarjeta detalles">
+      <summary>Diagnóstico</summary>
+      <div class="fila"><span class="etiqueta">Clientes</span><span id="clientes" class="num">—</span></div>
+      <div class="fila"><span class="etiqueta">Timeouts</span><span id="timeouts" class="num">—</span></div>
+      <div class="fila"><span class="etiqueta">Comandos perdidos</span><span id="perdidos" class="num">—</span></div>
+      <div class="fila"><span class="etiqueta">Ciclo del lazo</span><span id="ciclo" class="num">—</span></div>
+      <p class="ayuda">Teclado: W A S D o flechas para mover, X alto, P paro, R reanudar, + y − velocidad.</p>
+    </details>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

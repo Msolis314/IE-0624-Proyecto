@@ -1,0 +1,5 @@
+# Tabla de particiones para la flash de 16 MB
+# Nombre,   Tipo, Subtipo, Offset,   Tamaño
+nvs,        data, nvs,     0x9000,   0x6000
+phy_init,   data, phy,     0xf000,   0x1000
+factory,    app,  factory, 0x10000,  4M

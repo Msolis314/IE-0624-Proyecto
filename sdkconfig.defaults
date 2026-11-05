@@ -12,11 +12,15 @@ CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
 
-# ---- Tabla de particiones ----
-CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+# ---- Tabla de particiones (partitions.csv: app de 4 MB) ----
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
 # ---- FreeRTOS ----
 CONFIG_FREERTOS_HZ=1000
 
 # ---- Consola  ----
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# ---- Servidor HTTP: WebSocket para la aplicacion web ----
+CONFIG_HTTPD_WS_SUPPORT=y
